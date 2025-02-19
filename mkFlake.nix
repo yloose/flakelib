@@ -1,4 +1,4 @@
-inputs: let
+{ inputs, ... }@cfg: let
   nixpkgs = inputs.nixpkgs;
   self = inputs.self;
   defaultImport = default: path: if builtins.pathExists path && (nixpkgs.lib.pathIsDirectory path -> builtins.pathExists (path + "/default.nix")) then

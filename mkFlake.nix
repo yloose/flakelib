@@ -28,7 +28,7 @@ in
     importModules = baseDir: if pathExists (self + baseDir) then
       lists.concatMap
       (p:
-        if all (f: f (self + p + "/default.nix")) [pathExists] # Check if default.nix is a file and not a directory
+        if all (f: f (self + p + "/default.nix")) [pathExists (p: not (lib.pathIsDirectory p))]
         then [(self + p)]
         else importModules p)
       (mapAttrsToList (n: v: "${baseDir}/${n}")

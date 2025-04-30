@@ -9,14 +9,15 @@ let
   ];
 in rec {
   forAllSystems = genAttrs systems;
-  importModules = self: baseDir: if builtins.pathExists (self + baseDir) then
+  importModulesWithDefaultFile = defaultFilename: self: baseDir: if builtins.pathExists (self + baseDir) then
     builtins.concatMap
     (p:
-      if builtins.all (f: f (self + p + "/default.nix")) [builtins.pathExists]
-      then [(self + p)]
+      if builtins.all (f: f (self + p + "/${defaultFilename}")) [builtins.pathExists]
+      then [(self + p + "/${defaultFilename}")]
       else importModules p)
     (mapAttrsToList (n: v: "${baseDir}/${n}")
       (filterAttrs (_: v: v == "directory")
         (builtins.readDir (self + baseDir))))
     else [];
+  importModules = importModulesWithDefaultFile "default.nix";
 }

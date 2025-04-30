@@ -8,12 +8,9 @@
   lib = nixpkgs.lib.extend (final: prev: prev // customLib);
 in
   with lib;
-  with builtins; let
-    allSystems = [
-      "aarch64-linux"
-      "x86_64-linux"
-    ];
-    forAllSystems = genAttrs allSystems;
+  with builtins;
+  with (import ./lib.nix);
+  let
     systemHasUser = hostname: foldr (str: acc: acc || (hasSuffix hostname str)) false (attrNames (readDir (self + "/homes")));
     forEachUser = hostname: let
       users = lists.foldr (l: acc: acc ++ [(head l)]) [] (filter (l: hostname == elemAt l 1) (map (strings.splitString "@") (attrNames (readDir (self + "/homes")))));
@@ -24,17 +21,6 @@ in
       systems = attrNames (readDir (self + "/systems"));
     in
       attrsets.genAttrs systems;
-
-    importModules = baseDir: if pathExists (self + baseDir) then
-      lists.concatMap
-      (p:
-        if all (f: f (self + p + "/default.nix")) [pathExists (p: not (lib.pathIsDirectory p))]
-        then [(self + p)]
-        else importModules p)
-      (mapAttrsToList (n: v: "${baseDir}/${n}")
-        (filterAttrs (_: v: v == "directory")
-          (readDir (self + baseDir))))
-      else [];
 
     getOptList = attrset: pathStr: let
       accessPath = getAttr;
@@ -86,7 +72,7 @@ in
                             }
                             (self + "/homes/${username}@${hostname}/default.nix")
                           ]
-                          ++ (importModules "/modules/home")
+                          ++ (importModules self "/modules/home")
                           ++ (getOptList cfg "homes.users.${username}@${hostname}.modules");
                       });
                     };
@@ -98,7 +84,7 @@ in
                 overlayModule
                 (self + "/systems/${hostname}")
               ]
-              ++ (importModules "/modules/nixos")
+              ++ (importModules self "/modules/nixos")
               ++ hmModules
               ++ (getOptList cfg "systems.${hostname}.modules");
             specialArgs = { inherit hostname inputs; isVm = getEnv "VM" == "1"; };

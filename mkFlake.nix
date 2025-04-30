@@ -17,21 +17,6 @@ in
     in
       attrsets.genAttrs users;
 
-    forEachSystem = let
-      systems = attrNames (readDir (self + "/systems"));
-    in
-      attrsets.genAttrs systems;
-
-    getOptList = attrset: pathStr: let
-      accessPath = getAttr;
-      path = strings.split "." pathStr;
-    in
-      if path == []
-      then attrset
-      else if hasAttr (head path) attrset
-      then getOptList (tail path) (accessPath (head path) attrset)
-      else [];
-
     overlays = if pathExists (self + "/overlays") then
         map (n: import (self + "/overlays/" + n) {inherit inputs;}) (attrNames (readDir (self + "/overlays")))
       else [];
@@ -40,7 +25,7 @@ in
           forAllSystems (system: import (self + "/packages") {pkgs = nixpkgs.legacyPackages.${system};})
         else { }; 
 
-      nixosConfigurations = forEachSystem (
+      nixosConfigurations = forEachSystem self (
         hostname:
           nixosSystem {
             modules = let

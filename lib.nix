@@ -20,4 +20,20 @@ in rec {
         (builtins.readDir (self + baseDir))))
     else [];
   importModules = importModulesWithDefaultFile "default.nix";
+
+  getOptList = attrset: pathStr: let
+    accessPath = builtins.getAttr;
+    path = builtins.filter builtins.isString (builtins.split "\\." pathStr);
+  in
+    if path == []
+    then attrset
+    else if builtins.hasAttr (builtins.head path) attrset
+    then getOptList (builtins.tail path) (accessPath (builtins.head path) attrset)
+    else [];
+
+
+  forEachSystem = self: let
+    systems = builtins.attrNames (builtins.readDir (self + "/systems"));
+  in
+    genAttrs systems;
 }

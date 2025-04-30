@@ -30,10 +30,28 @@ in rec {
     else if builtins.hasAttr (builtins.head path) attrset
     then getOptList (builtins.tail path) (accessPath (builtins.head path) attrset)
     else [];
-
-
+  
   forEachSystem = self: let
     systems = builtins.attrNames (builtins.readDir (self + "/systems"));
   in
     genAttrs systems;
+
+  eachSystem = eachSystemOp (
+    f: attrs: system:
+    let
+      ret = f system;
+    in
+    builtins.foldl' (
+      attrs: key:
+      attrs
+      // {
+        ${key} = (attrs.${key} or { }) // {
+          ${system} = ret.${key};
+        };
+      }
+    ) attrs (builtins.attrNames ret)
+  );
+  allSystems = eachSystem systems;
+
+  eachSystemOp = op: systems: f: builtins.foldl' (op f) { } systems;
 }

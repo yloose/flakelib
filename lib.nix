@@ -14,7 +14,7 @@ in rec {
     (p:
       if builtins.all (f: f (self + p + "/${defaultFilename}")) [builtins.pathExists]
       then [(self + p + "/${defaultFilename}")]
-      else importModules p)
+      else importModulesWithDefaultFile defaultFilename self p)
     (mapAttrsToList (n: v: "${baseDir}/${n}")
       (filterAttrs (_: v: v == "directory")
         (builtins.readDir (self + baseDir))))

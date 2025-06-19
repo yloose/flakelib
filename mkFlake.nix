@@ -25,6 +25,17 @@ in
           forAllSystems (system: import (self + "/packages") {pkgs = nixpkgs.legacyPackages.${system};})
         else { }; 
 
+      devShells = if pathExists (self + "/shells") then forAllSystems (system: builtins.listToAttrs (lib.pipe
+        (builtins.readDir (self + "/shells")) [
+          (lib.filterAttrs (_: fileType: fileType == "directory" ))
+          (builtins.attrNames)
+          (builtins.map (name: {
+            inherit name;
+            value = lib.callPackageWith (nixpkgs.legacyPackages.${system} // { inherit inputs; }) (self + "/shells/${name}") { };
+          }))
+        ]
+      )) else { };
+
       nixosConfigurations = forEachSystem self (
         hostname:
           nixosSystem {

@@ -36,6 +36,11 @@ in
         ]
       )) else { };
 
+      apps = if builtins.hasAttr "apps" cfg then 
+        forAllSystems (system: lib.mapAttrs (_: v: v { pkgs = nixpkgs.legacyPackages.${system}; inherit system lib; }) (lib.filterAttrs (name: _: ! builtins.elem name (lib.attrNames lib.systems.examples)) cfg.apps))
+          // (lib.filterAttrs (name: _: builtins.elem name (lib.attrNames lib.systems.examples)) cfg.apps)
+      else { };
+
       nixosConfigurations = forEachSystem self (
         hostname:
           nixosSystem {

@@ -27,7 +27,7 @@ in
 
       devShells = if pathExists (self + "/shells") then forAllSystems (system: builtins.listToAttrs (lib.pipe
         (builtins.readDir (self + "/shells")) [
-          (lib.filterAttrs (_: fileType: fileType == "directory" ))
+          (lib.filterAttrs (_: fileType: fileType == "directory"))
           (builtins.attrNames)
           (builtins.map (name: {
             inherit name;
@@ -36,10 +36,19 @@ in
         ]
       )) else { };
 
-      apps = if builtins.hasAttr "apps" cfg then 
+      apps = if pathExists (self + "/apps") then forAllSystems (system: builtins.listToAttrs (lib.pipe
+        (builtins.readDir (self + "/apps")) [
+          (lib.filterAttrs (_: fileType: fileType == "directory"))
+          (builtins.attrNames)
+          (builtins.map (name: {
+            inherit name;
+            value = import (self + "/apps/${name}") ({ pkgs = nixpkgs.legacyPackages.${system}; inherit system lib inputs; } // inputs );
+          }))
+        ]
+      )) else { } // (if builtins.hasAttr "apps" cfg then 
         forAllSystems (system: lib.mapAttrs (_: v: v { pkgs = nixpkgs.legacyPackages.${system}; inherit system lib; }) (lib.filterAttrs (name: _: ! builtins.elem name (lib.attrNames lib.systems.examples)) cfg.apps))
           // (lib.filterAttrs (name: _: builtins.elem name (lib.attrNames lib.systems.examples)) cfg.apps)
-      else { };
+      else { });
 
       nixosConfigurations = forEachSystem self (
         hostname:

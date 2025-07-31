@@ -68,7 +68,7 @@ in
                     home-manager = {
                       useGlobalPkgs = false;
                       useUserPackages = true;
-                      extraSpecialArgs = {inherit inputs; isVm = getEnv "VM" == 1;};
+                      extraSpecialArgs = {inherit inputs; };
                       users = forEachUser hostname (username: {
                         imports =
                           [

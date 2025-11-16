@@ -30,9 +30,24 @@ in rec {
     else if builtins.hasAttr (builtins.head path) attrset
     then getOptList (builtins.tail path) (accessPath (builtins.head path) attrset)
     else [];
-  
+
   forEachSystem = self: let
-    systems = builtins.attrNames (builtins.readDir (self + "/systems"));
+    find = path: let
+      contents = builtins.readDir path;
+    in
+      if builtins.hasAttr "default.nix" contents && contents."default.nix" == "regular" then [ "" ]
+      else
+        builtins.concatMap (name: if contents."${name}" == "directory" then
+            builtins.map (p: if p == "" then name else "${name}/${p}") (find (path + "/${name}"))
+          else
+            []
+        ) (builtins.attrNames contents);
+    systems = builtins.map (hostpath: rec {
+      hostPath = "${self}/systems/${hostpath}";
+      entryModule = "${hostPath}/default.nix";
+      hostname = builtins.replaceStrings ["/"] ["."] hostpath;
+    })
+      (find (self + "/systems"));
   in
     genAttrs systems;
 

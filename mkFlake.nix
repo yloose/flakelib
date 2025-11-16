@@ -51,7 +51,7 @@ in
       else { });
 
       nixosConfigurations = forEachSystem self (
-        hostname:
+        host:
           nixosSystem {
             modules = let
               overlayModule = {
@@ -61,7 +61,7 @@ in
                   ++ overlays);
               };
               hmModules =
-                if systemHasUser hostname
+                if systemHasUser host.hostname
                 then [
                   inputs.home-manager.nixosModules.home-manager
                   {
@@ -69,7 +69,7 @@ in
                       useGlobalPkgs = false;
                       useUserPackages = true;
                       extraSpecialArgs = {inherit inputs; };
-                      users = forEachUser hostname (username: {
+                      users = forEachUser host.hostname (username: {
                         imports =
                           [
                             overlayModule
@@ -80,10 +80,10 @@ in
                                 type = types.str;
                               };
                             }
-                            (self + "/homes/${username}@${hostname}/default.nix")
+                            (self + "/homes/${username}@${host.hostname}/default.nix")
                           ]
                           ++ (importModules self "/modules/home")
-                          ++ (getOptList cfg "homes.users.${username}@${hostname}.modules");
+                          ++ (getOptList cfg "homes.users.${username}@${host.hostname}.modules");
                       });
                     };
                   }
@@ -96,7 +96,7 @@ in
               ]
               ++ (importModules self "/modules/nixos")
               ++ hmModules
-              ++ (getOptList cfg "systems.${hostname}.modules");
+              ++ (getOptList cfg "systems.${host.hostname}.modules");
             specialArgs = { inherit hostname inputs; isVm = getEnv "VM" == "1"; };
           }
       );

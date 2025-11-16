@@ -49,7 +49,7 @@ in rec {
     })
       (find (self + "/systems"));
   in
-    genAttrs systems;
+    f: builtins.listToAttrs (builtins.map (host: {name = host.hostname; value = f host;}) systems);
 
   eachSystem = eachSystemOp (
     f: attrs: system:

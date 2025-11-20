@@ -45,7 +45,7 @@ in rec {
     systems = builtins.map (hostpath: rec {
       hostPath = "${self}/systems/${hostpath}";
       entryModule = "${hostPath}/default.nix";
-      hostname = builtins.replaceStrings ["/"] ["."] hostpath;
+      hostname = builtins.replaceStrings ["/"] ["-"] hostpath;
     })
       (find (self + "/systems"));
   in

@@ -92,7 +92,7 @@ in
             in
               [
                 overlayModule
-                (self + "/systems/${hostname}")
+                host.entryModule
               ]
               ++ (importModules self "/modules/nixos")
               ++ hmModules

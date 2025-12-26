@@ -97,7 +97,7 @@ in
               ++ (importModules self "/modules/nixos")
               ++ hmModules
               ++ (getOptList cfg "systems.${host.hostname}.modules");
-            specialArgs = { inherit hostname inputs; isVm = getEnv "VM" == "1"; };
+            specialArgs = { inherit inputs host; inherit (host) hostname; isVm = getEnv "VM" == "1"; };
           }
       );
   }

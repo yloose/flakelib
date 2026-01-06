@@ -31,7 +31,7 @@ in
           (builtins.attrNames)
           (builtins.map (name: {
             inherit name;
-            value = lib.callPackageWith (nixpkgs.legacyPackages.${system} // { inherit inputs; } // inputs) (self + "/shells/${name}") { };
+            value = lib.callPackageWith ((nixpkgs.legacyPackages.${system}.extend (final: prev: import (self + "/packages") {pkgs = prev;})) // { inherit inputs; } // inputs) (self + "/shells/${name}") { };
           }))
         ]
       )) else { };

@@ -96,7 +96,8 @@ in
               ]
               ++ (importModules self "/modules/nixos")
               ++ hmModules
-              ++ (getOptList cfg "systems.${host.hostname}.modules");
+              ++ (getOptList cfg "systems.${host.hostname}.modules")
+              ++ (getOptList cfg "systems.nixos.modules");
             specialArgs = { inherit inputs host; inherit (host) hostname; };
           }
       );

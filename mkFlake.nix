@@ -4,7 +4,7 @@
   defaultImport = default: path: if builtins.pathExists path && (nixpkgs.lib.pathIsDirectory path -> builtins.pathExists (path + "/default.nix")) then
     import path
   else default;
-  customLib = defaultImport (_: {}) (self + "/lib") {inherit (nixpkgs) lib;};
+  customLib = defaultImport (_: {}) (self + "/lib") {inherit (nixpkgs) lib inputs;};
   lib = nixpkgs.lib.extend (final: prev: prev // customLib);
 in
   with lib;
@@ -42,7 +42,7 @@ in
           (builtins.attrNames)
           (builtins.map (name: {
             inherit name;
-            value = import (self + "/apps/${name}") ({ pkgs = nixpkgs.legacyPackages.${system}; inherit system lib inputs; } // inputs );
+            value = import (self + "/apps/${name}") ({ pkgs = nixpkgs.legacyPackages.${system}.extend (final: prev: (import (self + "/packages") {pkgs = prev;})); inherit system lib inputs; } // inputs );
           }))
         ]
       )) else { } // (if builtins.hasAttr "apps" cfg then 
@@ -97,7 +97,7 @@ in
               ++ (importModules self "/modules/nixos")
               ++ hmModules
               ++ (getOptList cfg "systems.${host.hostname}.modules");
-            specialArgs = { inherit inputs host; inherit (host) hostname; isVm = getEnv "VM" == "1"; };
+            specialArgs = { inherit inputs host; inherit (host) hostname; };
           }
       );
   }

@@ -24,7 +24,7 @@ in rec {
   getOptList = attrset: pathStr: let
     path = builtins.filter builtins.isString (builtins.split "\\." pathStr);
   in
-    if path == []
+    if path == [] || path == [ "" ]
     then attrset
     else if builtins.hasAttr (builtins.head path) attrset
     then getOptList (builtins.getAttr (builtins.head path) attrset) (builtins.concatStringsSep "." (builtins.tail path))

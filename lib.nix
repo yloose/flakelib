@@ -27,7 +27,7 @@ in rec {
     if path == []
     then attrset
     else if builtins.hasAttr (builtins.head path) attrset
-    then getOptList (builtins.getAttr (builtins.head path) attrset) (builtins.tail path)
+    then getOptList (builtins.getAttr (builtins.head path) attrset) (builtins.concatStringsSep "." (builtins.tail path))
     else [];
 
   forEachSystem = self: let

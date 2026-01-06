@@ -4,7 +4,7 @@
   defaultImport = default: path: if builtins.pathExists path && (nixpkgs.lib.pathIsDirectory path -> builtins.pathExists (path + "/default.nix")) then
     import path
   else default;
-  customLib = defaultImport (_: {}) (self + "/lib") {inherit (nixpkgs) lib inputs;};
+  customLib = defaultImport (_: {}) (self + "/lib") {inherit (nixpkgs) lib; inherit inputs;};
   lib = nixpkgs.lib.extend (final: prev: prev // customLib);
 in
   with lib;

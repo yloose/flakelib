@@ -11,7 +11,7 @@ in
   with builtins;
   with (import ./lib.nix);
   let
-    systemHasUser = hostname: foldr (str: acc: acc || (hasSuffix hostname str)) false (attrNames (readDir (self + "/homes")));
+    systemHasUser = hostname: builtins.pathExists (self + "/homes") && (foldr (str: acc: acc || (hasSuffix hostname str)) false (attrNames (readDir (self + "/homes"))));
     forEachUser = hostname: let
       users = lists.foldr (l: acc: acc ++ [(head l)]) [] (filter (l: hostname == elemAt l 1) (map (strings.splitString "@") (attrNames (readDir (self + "/homes")))));
     in

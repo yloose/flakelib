@@ -22,13 +22,12 @@ in rec {
   importModules = importModulesWithDefaultFile "default.nix";
 
   getOptList = attrset: pathStr: let
-    accessPath = builtins.getAttr;
     path = builtins.filter builtins.isString (builtins.split "\\." pathStr);
   in
     if path == []
     then attrset
     else if builtins.hasAttr (builtins.head path) attrset
-    then getOptList (builtins.tail path) (accessPath (builtins.head path) attrset)
+    then getOptList (builtins.getAttr (builtins.head path) attrset) (builtins.tail path)
     else [];
 
   forEachSystem = self: let

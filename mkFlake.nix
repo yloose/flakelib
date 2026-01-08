@@ -22,7 +22,7 @@ in
       else [];
   in {
       packages = if pathExists (self + "/packages/default.nix") then
-          forAllSystems (system: import (self + "/packages") {pkgs = nixpkgs.legacyPackages.${system};})
+          forAllSystems (system: import (self + "/packages") { inherit lib inputs; pkgs = nixpkgs.legacyPackages.${system};})
         else { }; 
 
       devShells = if pathExists (self + "/shells") then forAllSystems (system: builtins.listToAttrs (lib.pipe
@@ -31,7 +31,7 @@ in
           (builtins.attrNames)
           (builtins.map (name: {
             inherit name;
-            value = lib.callPackageWith ((nixpkgs.legacyPackages.${system}.extend (final: prev: import (self + "/packages") {pkgs = prev;})) // { inherit inputs; } // inputs) (self + "/shells/${name}") { };
+            value = lib.callPackageWith ((nixpkgs.legacyPackages.${system}.extend (final: prev: import (self + "/packages") { inherit lib inputs; pkgs = prev;})) // { inherit inputs; } // inputs) (self + "/shells/${name}") { };
           }))
         ]
       )) else { };
@@ -56,7 +56,7 @@ in
             modules = let
               overlayModule = {
                 nixpkgs.overlays = mkBefore ([
-                    (final: prev: (import (self + "/packages") {pkgs = prev;}))
+                    (final: prev: (import (self + "/packages") {inherit lib inputs; pkgs = prev;}))
                   ]
                   ++ overlays);
               };

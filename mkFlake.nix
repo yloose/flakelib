@@ -42,7 +42,7 @@ in
           (builtins.attrNames)
           (builtins.map (name: {
             inherit name;
-            value = import (self + "/apps/${name}") ({ pkgs = nixpkgs.legacyPackages.${system}.extend (final: prev: (import (self + "/packages") {pkgs = prev;})); inherit system lib inputs; } // inputs );
+            value = import (self + "/apps/${name}") ({ pkgs = nixpkgs.legacyPackages.${system}.extend (final: prev: (import (self + "/packages") { inherit lib inputs; pkgs = prev;})); inherit system lib inputs; } // inputs );
           }))
         ]
       )) else { } // (if builtins.hasAttr "apps" cfg then 

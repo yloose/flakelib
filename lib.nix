@@ -9,15 +9,15 @@ let
   ];
 in rec {
   forAllSystems = genAttrs systems;
-  importModulesWithDefaultFile = defaultFilename: self: baseDir: if builtins.pathExists (self + baseDir) then
+  importModulesWithDefaultFile = defaultFilename: self: baseDir: if builtins.pathExists "${self}/${baseDir}" then
     builtins.concatMap
     (p:
-      if builtins.all (f: f (self + p + "/${defaultFilename}")) [builtins.pathExists]
-      then [(self + p + "/${defaultFilename}")]
+      if builtins.all (f: f "${self}/${p}/${defaultFilename}") [builtins.pathExists]
+      then ["${self}/${p}/${defaultFilename}"]
       else importModulesWithDefaultFile defaultFilename self p)
     (mapAttrsToList (n: v: "${baseDir}/${n}")
       (filterAttrs (_: v: v == "directory")
-        (builtins.readDir (self + baseDir))))
+        (builtins.readDir  "${self}/${baseDir}")))
     else [];
   importModules = importModulesWithDefaultFile "default.nix";
 
@@ -46,7 +46,7 @@ in rec {
       entryModule = "${hostPath}/default.nix";
       hostname = builtins.replaceStrings ["/"] ["-"] hostpath;
     })
-      (find (self + "/systems"));
+      (find "${self}/systems");
   in
     f: builtins.listToAttrs (builtins.map (host: {name = host.hostname; value = f host;}) systems);
 

@@ -32,23 +32,23 @@ in rec {
 
   forEachSystem = self: let
     find = path: let
-      contents = builtins.readDir path;
+      contents = if builtins.pathExists path then builtins.readDir path else { };
     in
       if builtins.hasAttr "default.nix" contents && contents."default.nix" == "regular" then [ "" ]
       else
         builtins.concatMap (name: if contents."${name}" == "directory" then
-            builtins.map (p: if p == "" then name else "${name}/${p}") (find (path + "/${name}"))
+            map (p: if p == "" then name else "${name}/${p}") (find (path + "/${name}"))
           else
             []
         ) (builtins.attrNames contents);
-    systems = builtins.map (hostpath: rec {
+    systems = map (hostpath: rec {
       hostPath = "${self}/systems/${hostpath}";
       entryModule = "${hostPath}/default.nix";
       hostname = builtins.replaceStrings ["/"] ["-"] hostpath;
     })
       (find "${self}/systems");
   in
-    f: builtins.listToAttrs (builtins.map (host: {name = host.hostname; value = f host;}) systems);
+    f: builtins.listToAttrs (map (host: {name = host.hostname; value = f host;}) systems);
 
   eachSystem = eachSystemOp (
     f: attrs: system:

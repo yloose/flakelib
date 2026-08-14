@@ -1,5 +1,4 @@
 let
-  mapAttrsToList = f: attrs: map (name: f name attrs.${name}) (builtins.attrNames attrs);
   filterAttrs = pred: set: removeAttrs set (builtins.filter (name: !pred name set.${name}) (builtins.attrNames set));
   nameValuePair = name: value: { inherit name value; };
   genAttrs = names: f: builtins.listToAttrs (map (n: nameValuePair n (f n)) names);
@@ -9,16 +8,17 @@ let
   ];
 in rec {
   forAllSystems = genAttrs systems;
-  importModulesWithDefaultFile = defaultFilename: self: baseDir: if builtins.pathExists "${self}/${baseDir}" then
-    builtins.concatMap
-    (p:
-      if builtins.all (f: f "${self}/${p}/${defaultFilename}") [builtins.pathExists]
-      then ["${self}/${p}/${defaultFilename}"]
-      else importModulesWithDefaultFile defaultFilename self p)
-    (mapAttrsToList (n: v: "${baseDir}/${n}")
-      (filterAttrs (_: v: v == "directory")
-        (builtins.readDir  "${self}/${baseDir}")))
-    else [];
+  importModulesWithDefaultFile = defaultFilename: self: baseDir: let
+    dir = "${self}/${baseDir}";
+    defaultFile = "${dir}/${defaultFilename}";
+  in
+    if !(builtins.pathExists dir) then []
+    else if builtins.pathExists defaultFile then [ defaultFile ]
+    else builtins.concatMap
+      (name: importModulesWithDefaultFile defaultFilename self "${baseDir}/${name}")
+      (builtins.attrNames
+        (filterAttrs (_: v: v == "directory")
+          (builtins.readDir dir)));
   importModules = importModulesWithDefaultFile "default.nix";
 
   getOptList = attrset: pathStr: let

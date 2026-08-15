@@ -2,20 +2,36 @@ let
   filterAttrs = pred: set: removeAttrs set (builtins.filter (name: !pred name set.${name}) (builtins.attrNames set));
   nameValuePair = name: value: {inherit name value;};
   genAttrs = names: f: builtins.listToAttrs (map (n: nameValuePair n (f n)) names);
+  hasPrefix = prefix: str: builtins.substring 0 (builtins.stringLength prefix) str == prefix;
   systems = [
     "x86_64-linux"
     "aarch64-linux"
   ];
 in rec {
   forAllSystems = genAttrs systems;
-  importTreeWithDefaultFile = defaultFileName: self: startDir: let
-    root =
-      if builtins.isPath startDir
-      then startDir
-      else if startDir == "" || startDir == "."
-      then self
-      else self + "/${startDir}";
 
+  resolvePath = self: dir:
+    if builtins.isPath dir
+    then dir
+    else let
+      root = toString self;
+      str = toString dir;
+      unrooted =
+        if str == root
+        then ""
+        else if hasPrefix "${root}/" str
+        then builtins.substring (builtins.stringLength root + 1) (builtins.stringLength str) str
+        else str;
+      rel = builtins.head (builtins.match "/*(.*)" unrooted);
+    in
+      self
+      + (
+        if rel == "" || rel == "."
+        then ""
+        else "/${rel}"
+      );
+
+  importTreeWithDefaultFile = defaultFileName: self: startDir: let
     walk = rel: dir: let
       entries = builtins.readDir dir;
     in
@@ -33,24 +49,33 @@ in rec {
         {}
         (builtins.filter (n: entries.${n} == "directory") (builtins.attrNames entries));
   in
-    walk "" root;
+    walk "" (resolvePath self startDir);
   importTree = importTreeWithDefaultFile "default.nix";
 
-  importModulesWithDefaultFile = defaultFilename: self: baseDir: let
-    dir = "${self}/${baseDir}";
-    defaultFile = "${dir}/${defaultFilename}";
+  importModulesWithDefaultFile = defaultFileName: self: baseDir: let
+    walk = dir: let
+      defaultFile = dir + "/${defaultFileName}";
+    in
+      if !(builtins.pathExists dir)
+      then []
+      else if builtins.pathExists defaultFile
+      then [defaultFile]
+      else
+        builtins.concatMap
+        (name: walk (dir + "/${name}"))
+        (builtins.attrNames
+          (filterAttrs (_: v: v == "directory")
+            (builtins.readDir dir)));
   in
-    if !(builtins.pathExists dir)
-    then []
-    else if builtins.pathExists defaultFile
-    then [defaultFile]
-    else
-      builtins.concatMap
-      (name: importModulesWithDefaultFile defaultFilename self "${baseDir}/${name}")
-      (builtins.attrNames
-        (filterAttrs (_: v: v == "directory")
-          (builtins.readDir dir)));
+    walk (resolvePath self baseDir);
   importModules = importModulesWithDefaultFile "default.nix";
+
+  withSelf = self: {
+    importTree = importTree self;
+    importTreeWithDefaultFile = defaultFileName: importTreeWithDefaultFile defaultFileName self;
+    importModules = importModules self;
+    importModulesWithDefaultFile = defaultFileName: importModulesWithDefaultFile defaultFileName self;
+  };
 
   getOptList = attrset: pathStr: let
     path = builtins.filter builtins.isString (builtins.split "\\." pathStr);

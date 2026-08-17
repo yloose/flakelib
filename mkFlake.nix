@@ -1,166 +1,25 @@
-{inputs, ...} @ cfg: let
-  nixpkgs = inputs.nixpkgs;
-  self = inputs.self;
-  flakelib = import ./lib.nix;
-  defaultImport = default: path:
-    if builtins.pathExists path && (nixpkgs.lib.pathIsDirectory path -> builtins.pathExists (path + "/default.nix"))
-    then import path
-    else default;
-  customLib = defaultImport (_: {}) (self + "/lib") {
-    inherit (nixpkgs) lib;
-    inherit inputs;
-  };
-  lib = nixpkgs.lib.extend (final: prev: prev // flakelib.withSelf self // customLib);
+{
+  inputs,
+  src ? throw "flakelib: mkFlake requires 'src', the root of the calling flake.",
+  ...
+} @ cfg: let
+  mkLib = import ./mkLib.nix;
+  lib = mkLib {inherit inputs src;};
 in
-  with lib;
-  with builtins;
-  with flakelib; let
-    systemHasUser = hostname: builtins.pathExists "${self}/homes" && (foldr (str: acc: acc || (hasSuffix hostname str)) false (attrNames (readDir "${self}/homes")));
-    forEachUser = hostname: let
-      users = lists.foldr (l: acc: acc ++ [(head l)]) [] (filter (l: hostname == elemAt l 1) (map (strings.splitString "@") (attrNames (readDir "${self}/homes"))));
-    in
-      attrsets.genAttrs users;
-
-    overlays =
-      if pathExists "${self}/overlays"
-      then map (n: import "${self}/overlays/${n}" {inherit inputs;}) (attrNames (readDir "${self}/overlays"))
-      else [];
-  in rec {
-    packages =
-      if builtins.pathExists (self + "/packages")
-      then forAllSystems (system: let
-        pkgs = nixpkgs.legacyPackages.${system}.extend (final: prev: self.packages.${system});
-      in
-        builtins.listToAttrs (
-          lib.pipe
-          (builtins.readDir (self + "/packages")) [
-            builtins.attrNames
-            (map (name: {
-              inherit name;
-              # 2. Use our extended `pkgs` here instead of the legacyPackages directly
-              value = pkgs.callPackage (self + "/packages/${name}") {};
-            }))
-          ]
-        ))
-      else {};
-
-    devShells =
-      if pathExists "${self}/shells"
-      then
-        forAllSystems (system:
-          builtins.listToAttrs (
-            lib.pipe
-            (builtins.readDir "${self}/shells") [
-              (lib.filterAttrs (_: fileType: fileType == "directory"))
-              builtins.attrNames
-              (map (name: {
-                inherit name;
-                value = lib.callPackageWith ((nixpkgs.legacyPackages.${system}.extend (_: _: packages.${system})) // {inherit inputs;} // inputs) "${self}/shells/${name}" {};
-              }))
-            ]
-          ))
-      else {};
-
-    apps =
-      if pathExists "${self}/apps"
-      then
-        forAllSystems (system:
-          builtins.listToAttrs (
-            lib.pipe
-            (builtins.readDir "${self}/apps") [
-              (lib.filterAttrs (_: fileType: fileType == "directory"))
-              (builtins.attrNames)
-              (builtins.map (name: {
-                inherit name;
-                value = import "${self}/apps/${name}" ({
-                    pkgs = nixpkgs.legacyPackages.${system}.extend (_: _: packages.${system});
-                    inherit system lib inputs;
-                  }
-                  // inputs);
-              }))
-            ]
-          ))
-      else
-        {}
-        // (
-          if builtins.hasAttr "apps" cfg
-          then
-            forAllSystems (system:
-              lib.mapAttrs (_: v:
-                v {
-                  pkgs = nixpkgs.legacyPackages.${system};
-                  inherit system lib;
-                }) (lib.filterAttrs (name: _: ! builtins.elem name (lib.attrNames lib.systems.examples)) cfg.apps))
-            // (lib.filterAttrs (name: _: builtins.elem name (lib.attrNames lib.systems.examples)) cfg.apps)
-          else {}
-        );
-
-    nixosConfigurations = forEachSystem self (
-      host:
-        nixosSystem {
-          modules = let
-            overlayModule = {
-              nixpkgs.overlays = mkBefore ([
-                  (
-                    final: prev:
-                      if builtins.pathExists (self + "/packages")
-                      then
-                        builtins.listToAttrs (
-                          lib.pipe
-                          (builtins.readDir (self + "/packages")) [
-                            builtins.attrNames
-                            (map (name: {
-                              inherit name;
-                              value = final.callPackage (self + "/packages/${name}") {};
-                            }))
-                          ]
-                        )
-                      else {}
-                  )
-                ]
-                ++ overlays);
-            };
-            hmModules =
-              if systemHasUser host.hostname
-              then [
-                inputs.home-manager.nixosModules.home-manager
-                {
-                  home-manager = {
-                    useGlobalPkgs = true;
-                    useUserPackages = true;
-                    extraSpecialArgs = {inherit inputs;};
-                    users = forEachUser host.hostname (username: {
-                      imports =
-                        [
-                          {
-                            options.flake.user.name = mkOption {
-                              description = "The current username as provided by the flake.";
-                              default = username;
-                              type = types.str;
-                            };
-                          }
-                          "${self}/homes/${username}@${host.hostname}/default.nix"
-                        ]
-                        ++ (lib.importModules "modules/home")
-                        ++ (getOptList cfg "homes.users.${username}@${host.hostname}.modules");
-                    });
-                  };
-                }
-              ]
-              else [];
-          in
-            [
-              overlayModule
-              host.entryModule
-            ]
-            ++ (lib.importModules "modules/nixos")
-            ++ hmModules
-            ++ (getOptList cfg "systems.${host.hostname}.modules")
-            ++ (getOptList cfg "systems.nixos.modules");
-          specialArgs = {
-            inherit inputs host;
-            inherit (host) hostname;
-          };
-        }
-    );
-  }
+  (lib.evalModules {
+    class = "flake";
+    specialArgs = {inherit inputs src;};
+    modules = [
+      ./flake-modules/core.nix
+      ./flake-modules/packages.nix
+      ./flake-modules/shells.nix
+      ./flake-modules/apps.nix
+      ./flake-modules/overlays.nix
+      ./flake-modules/nixos.nix
+      ./flake-modules/home-manager.nix
+      ./flake-modules/nixpkgs.nix
+      (builtins.removeAttrs cfg ["inputs" "src"])
+    ];
+  })
+  .config
+  .outputs

@@ -1,20 +1,25 @@
 let
   filterAttrs = pred: set: removeAttrs set (builtins.filter (name: !pred name set.${name}) (builtins.attrNames set));
-  nameValuePair = name: value: {inherit name value;};
-  genAttrs = names: f: builtins.listToAttrs (map (n: nameValuePair n (f n)) names);
   hasPrefix = prefix: str: builtins.substring 0 (builtins.stringLength prefix) str == prefix;
-  systems = [
-    "x86_64-linux"
-    "aarch64-linux"
-  ];
+  splitOn = separator: str: let
+    separatorLength = builtins.stringLength separator;
+    strLength = builtins.stringLength str;
+    walk = start: i:
+      if i + separatorLength > strLength
+      then [(builtins.substring start (strLength - start) str)]
+      else if builtins.substring i separatorLength str == separator
+      then [(builtins.substring start (i - start) str)] ++ walk (i + separatorLength) (i + separatorLength)
+      else walk start (i + 1);
+  in
+    if separatorLength == 0
+    then [str]
+    else walk 0 0;
 in rec {
-  forAllSystems = genAttrs systems;
-
-  resolvePath = self: dir:
+  resolvePath = src: dir:
     if builtins.isPath dir
     then dir
     else let
-      root = toString self;
+      root = toString src;
       str = toString dir;
       unrooted =
         if str == root
@@ -24,19 +29,26 @@ in rec {
         else str;
       rel = builtins.head (builtins.match "/*(.*)" unrooted);
     in
-      self
+      src
       + (
         if rel == "" || rel == "."
         then ""
         else "/${rel}"
       );
 
-  importTreeWithDefaultFile = defaultFileName: self: startDir: let
+  importTreeWithDefaultFile = defaultFileName: src: startDir: let
     walk = rel: dir: let
       entries = builtins.readDir dir;
     in
-      if rel != "" && (entries.${defaultFileName} or "directory") != "directory"
-      then {${rel} = dir + "/${defaultFileName}";}
+      if (entries.${defaultFileName} or "directory") != "directory"
+      then {
+        ${
+          if rel == ""
+          then "default"
+          else rel
+        } =
+          dir + "/${defaultFileName}";
+      }
       else
         builtins.foldl'
         (acc: n:
@@ -48,11 +60,14 @@ in rec {
           ) (dir + "/${n}"))
         {}
         (builtins.filter (n: entries.${n} == "directory") (builtins.attrNames entries));
+    root = resolvePath src startDir;
   in
-    walk "" (resolvePath self startDir);
+    if builtins.pathExists root
+    then walk "" root
+    else {};
   importTree = importTreeWithDefaultFile "default.nix";
 
-  importModulesWithDefaultFile = defaultFileName: self: baseDir: let
+  importModulesWithDefaultFile = defaultFileName: src: baseDir: let
     walk = dir: let
       defaultFile = dir + "/${defaultFileName}";
     in
@@ -67,78 +82,44 @@ in rec {
           (filterAttrs (_: v: v == "directory")
             (builtins.readDir dir)));
   in
-    walk (resolvePath self baseDir);
+    walk (resolvePath src baseDir);
   importModules = importModulesWithDefaultFile "default.nix";
 
-  withSelf = self: {
-    importTree = importTree self;
-    importTreeWithDefaultFile = defaultFileName: importTreeWithDefaultFile defaultFileName self;
-    importModules = importModules self;
-    importModulesWithDefaultFile = defaultFileName: importModulesWithDefaultFile defaultFileName self;
+  nestAttrsWithSeparator = separator: flat: let
+    insert = attrs: path: value:
+      if builtins.length path == 1
+      then attrs // {${builtins.head path} = value;}
+      else let
+        name = builtins.head path;
+      in
+        attrs // {${name} = insert (attrs.${name} or {}) (builtins.tail path) value;};
+  in
+    builtins.foldl'
+    (acc: key: insert acc (splitOn separator key) flat.${key})
+    {}
+    (builtins.attrNames flat);
+  nestAttrs = nestAttrsWithSeparator "/";
+
+  callTreeWithLib = lib: newScope: tree:
+    lib.mapAttrs (
+      _: value:
+        if builtins.isAttrs value
+        then lib.makeScope newScope (self: callTreeWithLib lib self.newScope value)
+        else newScope {} value {}
+    )
+    tree;
+
+  withSrc = src: {
+    importTree = importTree src;
+    importTreeWithDefaultFile = defaultFileName: importTreeWithDefaultFile defaultFileName src;
+    importModules = importModules src;
+    importModulesWithDefaultFile = defaultFileName: importModulesWithDefaultFile defaultFileName src;
+    inherit nestAttrs nestAttrsWithSeparator;
   };
 
-  getOptList = attrset: pathStr: let
-    path = builtins.filter builtins.isString (builtins.split "\\." pathStr);
-  in
-    if path == [] || path == [""]
-    then attrset
-    else if builtins.hasAttr (builtins.head path) attrset
-    then getOptList (builtins.getAttr (builtins.head path) attrset) (builtins.concatStringsSep "." (builtins.tail path))
-    else [];
-
-  forEachSystem = self: let
-    find = path: let
-      contents =
-        if builtins.pathExists path
-        then builtins.readDir path
-        else {};
-    in
-      if builtins.hasAttr "default.nix" contents && contents."default.nix" == "regular"
-      then [""]
-      else
-        builtins.concatMap (
-          name:
-            if contents."${name}" == "directory"
-            then
-              map (p:
-                if p == ""
-                then name
-                else "${name}/${p}") (find (path + "/${name}"))
-            else []
-        ) (builtins.attrNames contents);
-    systems =
-      map (hostpath: rec {
-        hostPath = "${self}/systems/${hostpath}";
-        entryModule = "${hostPath}/default.nix";
-        hostname = builtins.replaceStrings ["/"] ["-"] hostpath;
-      })
-      (find "${self}/systems");
-  in
-    f:
-      builtins.listToAttrs (map (host: {
-          name = host.hostname;
-          value = f host;
-        })
-        systems);
-
-  eachSystem = eachSystemOp (
-    f: attrs: system: let
-      ret = f system;
-    in
-      builtins.foldl' (
-        attrs: key:
-          attrs
-          // {
-            ${key} =
-              (attrs.${key} or {})
-              // {
-                ${system} = ret.${key};
-              };
-          }
-      )
-      attrs (builtins.attrNames ret)
-  );
-  allSystems = eachSystem systems;
-
-  eachSystemOp = op: systems: f: builtins.foldl' (op f) {} systems;
+  overlay = src: final: prev:
+    withSrc src
+    // {
+      callTree = callTreeWithLib final;
+    };
 }

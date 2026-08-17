@@ -62,11 +62,11 @@
 
     flakelib = {
       hosts.path = lib.mkOption {
-        type = lib.types.str;
+        type = lib.types.nullOr (lib.types.oneOf [lib.types.pathInStore lib.types.str]);
         default = "/hosts";
       };
       nixosModules.path = lib.mkOption {
-        type = lib.types.oneOf [lib.types.pathInStore lib.types.str];
+        type = lib.types.nullOr (lib.types.oneOf [lib.types.pathInStore lib.types.str]);
         default = "/modules/nixos";
       };
     };

@@ -36,6 +36,16 @@ in rec {
         else "/${rel}"
       );
 
+  resolveOptionalPath = src: dir:
+    if dir == null
+    then null
+    else let
+      root = resolvePath src dir;
+    in
+      if builtins.pathExists root
+      then root
+      else null;
+
   importTreeWithDefaultFile = defaultFileName: src: startDir: let
     walk = rel: dir: let
       entries = builtins.readDir dir;
@@ -60,20 +70,18 @@ in rec {
           ) (dir + "/${n}"))
         {}
         (builtins.filter (n: entries.${n} == "directory") (builtins.attrNames entries));
-    root = resolvePath src startDir;
+    root = resolveOptionalPath src startDir;
   in
-    if builtins.pathExists root
-    then walk "" root
-    else {};
+    if root == null
+    then {}
+    else walk "" root;
   importTree = importTreeWithDefaultFile "default.nix";
 
   importModulesWithDefaultFile = defaultFileName: src: baseDir: let
     walk = dir: let
       defaultFile = dir + "/${defaultFileName}";
     in
-      if !(builtins.pathExists dir)
-      then []
-      else if builtins.pathExists defaultFile
+      if builtins.pathExists defaultFile
       then [defaultFile]
       else
         builtins.concatMap
@@ -81,8 +89,11 @@ in rec {
         (builtins.attrNames
           (filterAttrs (_: v: v == "directory")
             (builtins.readDir dir)));
+    root = resolveOptionalPath src baseDir;
   in
-    walk (resolvePath src baseDir);
+    if root == null
+    then []
+    else walk root;
   importModules = importModulesWithDefaultFile "default.nix";
 
   nestAttrsWithSeparator = separator: flat: let

@@ -10,7 +10,7 @@
       default = {};
     };
     flakelib.packages.path = lib.mkOption {
-      type = lib.types.oneOf [lib.types.pathInStore lib.types.str];
+      type = lib.types.nullOr (lib.types.oneOf [lib.types.pathInStore lib.types.str]);
       default = "/packages";
     };
   };

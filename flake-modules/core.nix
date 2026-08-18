@@ -1,4 +1,7 @@
 {lib, ...}: {
+
+  imports = lib.importModules "/flake";
+
   options = {
     systems = lib.mkOption {
       type = lib.types.listOf lib.types.str;
